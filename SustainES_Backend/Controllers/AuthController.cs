@@ -12,11 +12,13 @@ namespace SustainES_Backend.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IEmailService _emailService;
+        private readonly IPasswordHasher _passwordHasher;
 
-        public AuthController(AppDbContext context, IEmailService emailService)
+        public AuthController(AppDbContext context, IEmailService emailService, IPasswordHasher passwordHasher)
         {
             _context = context;
             _emailService = emailService;
+            _passwordHasher = passwordHasher;
         }
 
         private static string NormalizeEmail(string email)
@@ -45,7 +47,7 @@ namespace SustainES_Backend.Controllers
                 {
                     FullName = request.FullName.Trim(),
                     Email = normalizedEmail,
-                    Password = request.Password,
+                    Password = _passwordHasher.HashPassword(request.Password), // Şifreyi hash'le
                     RoleId = 1, // Varsayılan "User" rolü
                     VerificationToken = verificationToken,
                     IsEmailVerified = false,
@@ -167,7 +169,7 @@ namespace SustainES_Backend.Controllers
             if (user.ResetPasswordTokenExpira < DateTime.UtcNow)
                 return BadRequest(new { message = "Token süresi dolmuş." });
 
-            user.Password = request.NewPassword;
+            user.Password = _passwordHasher.HashPassword(request.NewPassword); // Şifreyi hash'le
             user.ResetPasswordToken = string.Empty;
             user.ResetPasswordTokenExpira = null;
             _context.Users.Update(user);
@@ -182,9 +184,9 @@ namespace SustainES_Backend.Controllers
             var normalizedEmail = NormalizeEmail(request.Email);
             var user = await _context.Users
                 .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Email == normalizedEmail && u.Password == request.Password);
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
-            if (user == null)
+            if (user == null || !_passwordHasher.VerifyPassword(request.Password, user.Password))
                 return Unauthorized(new { message = "E-posta veya şifre hatalı!" });
 
             if (!user.IsEmailVerified)

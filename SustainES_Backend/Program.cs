@@ -15,7 +15,8 @@ builder.Services.AddCors(options =>
 });
 
 // 2. Servis Kayıtları
-builder.Services.AddScoped<IEmailService, EmailService>(); 
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>(); 
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -47,6 +48,7 @@ using (var scope = app.Services.CreateScope())
 
     if (!db.Users.Any(u => u.Email == "admin@sustaines.com"))
     {
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         var adminRole = db.Roles.FirstOrDefault(r => r.RoleName == "Admin");
         if (adminRole != null)
         {
@@ -54,7 +56,7 @@ using (var scope = app.Services.CreateScope())
             {
                 FullName = "SustainES Admin",
                 Email = "admin@sustaines.com",
-                Password = "Admin123!",
+                Password = passwordHasher.HashPassword("admin123"), // Şifreyi hash'le
                 RoleId = adminRole.Id,
                 IsEmailVerified = true,
                 VerificationToken = string.Empty,
